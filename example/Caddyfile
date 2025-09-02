@@ -1,0 +1,39 @@
+{
+	http_port 3000
+	https_port 3433
+	auto_https off
+
+	log badbotblocker {
+		include http.matchers.badbotblocker
+		format console
+		output stdout
+	}
+}
+
+(blocker) {
+	route {
+		@banned {
+			badbotblocker {
+				# exclude_user_agents
+				# exclude_ips
+				# user_agent_list_url
+				# ip_list_url
+				# referer_list_url
+				# trusted_ip_list_url
+			}
+		}
+
+		abort @banned
+	}
+}
+
+localhost:3000 {
+	import blocker
+
+	log {
+		output file ./access.log
+	}
+
+	respond "Hello, world!"
+}
+
