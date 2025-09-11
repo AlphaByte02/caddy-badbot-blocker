@@ -1,0 +1,14 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "go: xcaddy build package",
+            "command": "xcaddy",
+            "args": ["build", "--with", "github.com/AlphaByte02/CaddyBadBotBlocker=.", "--output", "dist/caddy"],
+            "options": { "env": { "XCADDY_DEBUG": "1" } },
+            "group": "build",
+            "detail": "xcaddy build"
+        }
+    ]
+}

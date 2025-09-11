@@ -54,6 +54,8 @@ func TestIsBadUserAgent(t *testing.T) {
 	}{
 		{"bad-bot", true},
 		{"good-bot", false},
+		{"Mozilla/5.0 (compatible; bad-bot/2.1; +http://www.bad-bot.com/bot.html)", true},
+		{"", false},
 	}
 
 	for _, test := range tests {
@@ -79,6 +81,8 @@ func TestIsBadReferer(t *testing.T) {
 	}{
 		{"bad-referer.com", true},
 		{"good-referer.com", false},
+		{"http://some-site.com/page?ref=bad-referer.com", true},
+		{"", true},
 	}
 
 	for _, test := range tests {

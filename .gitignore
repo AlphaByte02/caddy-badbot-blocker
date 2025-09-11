@@ -21,6 +21,13 @@
 # Go workspace file
 go.work
 
+dist/
+
+## Dev ##
+
+*.log
+/caddy
+
 ### VisualStudioCode ###
 .vscode/*
 !.vscode/settings.json

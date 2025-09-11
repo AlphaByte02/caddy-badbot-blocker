@@ -1,0 +1,10 @@
+[caddy-badbotblocker]
+enabled = true
+
+filter = caddy-badbotblocker
+port = http,https
+logpath = /var/log/badbotblocker.log
+
+maxretry = 3
+findtime = 86400 ; 1 day
+bantime = 604800 ; 1 week

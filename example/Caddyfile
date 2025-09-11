@@ -3,27 +3,23 @@
 	https_port 3433
 	auto_https off
 
+	log default {
+		exclude http.log.access admin.api
+	}
+
 	log badbotblocker {
 		include http.matchers.badbotblocker
-		format console
-		output stdout
+		output file ./log/badbotblocker.log
 	}
 }
 
 (blocker) {
 	route {
-		@banned {
-			badbotblocker {
-				# exclude_user_agents
-				# exclude_ips
-				# user_agent_list_url
-				# ip_list_url
-				# referer_list_url
-				# trusted_ip_list_url
-			}
+		@banned badbotblocker
+		route @banned {
+			log_skip
+			abort
 		}
-
-		abort @banned
 	}
 }
 
@@ -31,9 +27,8 @@ localhost:3000 {
 	import blocker
 
 	log {
-		output file ./access.log
+		output file ./log/access.log
 	}
 
 	respond "Hello, world!"
 }
-

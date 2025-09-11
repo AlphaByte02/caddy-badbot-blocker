@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 
@@ -35,6 +36,7 @@ func init() {
 
 // BadBotMatcher implements an HTTP request matcher.
 type BadBotMatcher struct {
+	ExcludeReferer    []string `json:"exclude_referer,omitempty"`
 	ExcludeUserAgents []string `json:"exclude_user_agents,omitempty"`
 	ExcludeIPs        []string `json:"exclude_ips,omitempty"`
 
@@ -103,6 +105,8 @@ func (m *BadBotMatcher) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 	for d.NextBlock(0) {
 		switch d.Val() {
+		case "exclude_referer":
+			m.ExcludeReferer = d.RemainingArgs()
 		case "exclude_user_agents":
 			m.ExcludeUserAgents = d.RemainingArgs()
 		case "exclude_ips":
@@ -138,35 +142,25 @@ func (m BadBotMatcher) MatchWithError(r *http.Request) (bool, error) {
 		ip = r.RemoteAddr
 	}
 	userAgent := r.UserAgent()
-	referer := r.Referer()
+	referrer := r.Referer()
+	if referrer == "" {
+		referrer = r.Header.Get("Referrer")
+	}
 
+	var reason string
 	if m.isBadUserAgent(userAgent) {
-		m.logger.Info(
-			"Blocked request",
-			zap.String("reason", "Bad User-Agent"),
-			zap.String("ip", ip),
-			zap.String("useragent", userAgent),
-			zap.String("referer", referer),
-		)
-		return true, nil
+		reason = "Bad User-Agent"
+	} else if m.isBadReferer(referrer) {
+		reason = "Bad Referer"
+	} else if m.isBadIP(ip) {
+		reason = "Bad IP"
 	}
-	if m.isBadReferer(referer) {
+
+	if reason != "" {
 		m.logger.Info(
 			"Blocked request",
-			zap.String("reason", "Bad Referer"),
-			zap.String("ip", ip),
-			zap.String("useragent", userAgent),
-			zap.String("referer", referer),
-		)
-		return true, nil
-	}
-	if m.isBadIP(ip) {
-		m.logger.Info(
-			"Blocked request",
-			zap.String("reason", "Bad IP"),
-			zap.String("ip", ip),
-			zap.String("useragent", userAgent),
-			zap.String("referer", referer),
+			zap.String("reason", reason),
+			zap.Object("request", caddyhttp.LoggableHTTPRequest{Request: r}),
 		)
 		return true, nil
 	}
@@ -174,9 +168,13 @@ func (m BadBotMatcher) MatchWithError(r *http.Request) (bool, error) {
 	return false, nil
 }
 
-// Funzioni di aiuto per controllare liste malevoli
+// Helper functions to check malicious lists
 func (m *BadBotMatcher) isBadIP(ip string) bool {
 	host, _, _ := net.SplitHostPort(ip)
+	if host == "" {
+		host = ip
+	}
+
 	parsedIP := net.ParseIP(host)
 	if parsedIP == nil {
 		return false
@@ -184,6 +182,10 @@ func (m *BadBotMatcher) isBadIP(ip string) bool {
 
 	m.data.mutex.RLock()
 	defer m.data.mutex.RUnlock()
+
+	if slices.Contains(m.ExcludeIPs, host) {
+		return false
+	}
 
 	if m.data.BadIPs[host] {
 		return true
@@ -202,22 +204,42 @@ func (m *BadBotMatcher) isBadUserAgent(userAgent string) bool {
 	m.data.mutex.RLock()
 	defer m.data.mutex.RUnlock()
 
-	return m.data.BadUserAgents[userAgent]
+	if slices.Contains(m.ExcludeUserAgents, userAgent) {
+		return false
+	}
+
+	for badUA := range m.data.BadUserAgents {
+		if userAgent != "" && strings.Contains(userAgent, badUA) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (m *BadBotMatcher) isBadReferer(referer string) bool {
 	m.data.mutex.RLock()
 	defer m.data.mutex.RUnlock()
 
-	return m.data.BadReferers[referer]
+	if slices.Contains(m.ExcludeReferer, referer) {
+		return false
+	}
+
+	for badReferer := range m.data.BadReferers {
+		if referer != "" && strings.Contains(referer, badReferer) {
+			return true
+		}
+	}
+
+	return false
 }
 
-// Funzione per aggiornare le liste
+// Function to update the lists
 func (m *BadBotMatcher) updateLists(data *badBotData) error {
 	data.mutex.Lock()
 	defer data.mutex.Unlock()
 
-	// Scarica la lista di User-Agent malevoli
+	// Download the list of malicious User-Agents
 	userAgentList, err := m.fetchList(m.UserAgentListURL, []string{
 		"https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-user-agents.list",
 	})
@@ -229,7 +251,7 @@ func (m *BadBotMatcher) updateLists(data *badBotData) error {
 		data.BadUserAgents[ua] = true
 	}
 
-	subnets := make([]net.IPNet, 0)
+	goodSubnets := make([]net.IPNet, 0)
 
 	trustedIpRangeList, err := m.fetchList(m.TrustedIPListURL, []string{
 		"https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bing-ip-ranges.list",
@@ -241,11 +263,11 @@ func (m *BadBotMatcher) updateLists(data *badBotData) error {
 	}
 	for _, ip := range trustedIpRangeList {
 		if _, subnet, err := net.ParseCIDR(ip); err == nil {
-			subnets = append(subnets, *subnet)
+			goodSubnets = append(goodSubnets, *subnet)
 		}
 	}
 
-	// Scarica la lista di IP malevoli
+	// Download the list of malicious IPs
 	ipList, err := m.fetchList(m.IPListURL, []string{
 		"https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-ip-addresses.list",
 	})
@@ -261,7 +283,7 @@ func (m *BadBotMatcher) updateLists(data *badBotData) error {
 			}
 		} else {
 			isBad := true
-			for _, subnet := range subnets {
+			for _, subnet := range goodSubnets {
 				ip := net.ParseIP(ipStr)
 				if subnet.Contains(ip) {
 					isBad = false
@@ -272,7 +294,7 @@ func (m *BadBotMatcher) updateLists(data *badBotData) error {
 		}
 	}
 
-	// Scarica la lista di Referer malevoli
+	// Download the list of malicious Referers
 	refererList, err := m.fetchList(m.RefererListURL, []string{
 		"https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/refs/heads/master/_generator_lists/bad-referrers.list",
 	})
@@ -287,7 +309,7 @@ func (m *BadBotMatcher) updateLists(data *badBotData) error {
 	return nil
 }
 
-// Funzione di aiuto per scaricare le liste
+// Helper function to download the lists
 func (m *BadBotMatcher) fetchList(urls []string, defaultUrls []string) ([]string, error) {
 	if len(urls) == 0 {
 		urls = defaultUrls
@@ -309,7 +331,7 @@ func (m *BadBotMatcher) fetchList(urls []string, defaultUrls []string) ([]string
 		scanner := bufio.NewScanner(strings.NewReader(string(body)))
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
-			if len(line) > 0 && !strings.HasPrefix(line, "#") { // Ignora i commenti
+			if len(line) > 0 && !strings.HasPrefix(line, "#") { // Ignore comments
 				list = append(list, line)
 			}
 		}
