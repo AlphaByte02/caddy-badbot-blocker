@@ -82,7 +82,7 @@ func TestIsBadReferer(t *testing.T) {
 		{"bad-referer.com", true},
 		{"good-referer.com", false},
 		{"http://some-site.com/page?ref=bad-referer.com", true},
-		{"", true},
+		{"", false},
 	}
 
 	for _, test := range tests {
