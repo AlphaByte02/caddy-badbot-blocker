@@ -10,9 +10,10 @@ The module checks the IP address, User-Agent, and Referer of each incoming reque
 -   Blocks requests based on the User-Agent.
 -   Blocks requests based on the Referer.
 -   Uses blocklists from the `nginx-ultimate-bad-bot-blocker` project by default.
--   Allows customizing the URLs from which to download the lists.
 -   Allows excluding specific IP addresses or User-Agents from being blocked.
+-   Allows customizing the URLs from which to download the lists.
 -   Provides structured and customizable logging for blocked requests.
+-   Easy to setup with fail2ban
 
 ## Installation
 
@@ -108,6 +109,4 @@ your-domain.com {
 
 ## Credits
 
-This module would not be possible without the fantastic work of the open-source community. In particular, the blocklists are provided and maintained by the **[mitchellkrogza/nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker)** project.
-
-Please consider supporting their project if you find it useful.
+This module would not be possible without the fantastic work of the blocklists provided and maintained by the **[mitchellkrogza/nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker)** project.
