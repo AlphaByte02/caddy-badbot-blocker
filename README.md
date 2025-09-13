@@ -24,9 +24,9 @@ To use this module, you need to build a custom version of Caddy that includes it
     ```bash
     go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
     ```
-3.  Build Caddy with the `CaddyBadBotBlocker` module:
+3.  Build Caddy with the `caddy-badbot-blocker` module:
     ```bash
-    xcaddy build --with github.com/AlphaByte02/CaddyBadBotBlocker
+    xcaddy build --with github.com/AlphaByte02/caddy-badbot-blocker
     ```
 4.  This command will create a `caddy` executable in the current directory. Replace your existing Caddy binary with this new file, or use it directly to run the server.
 

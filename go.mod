@@ -1,4 +1,4 @@
-module github.com/AlphaByte02/CaddyBadBotBlocker
+module github.com/AlphaByte02/caddy-badbot-blocker
 
 go 1.25
 
